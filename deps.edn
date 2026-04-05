@@ -1,0 +1,18 @@
+{:paths ["src" "resources"]
+ :deps {org.clojure/clojure {:mvn/version "1.12.1"}
+
+        ;; FSM engine — compile, run, sub-FSM composition, FX
+        io.github.hive-agi/hive-events {:local/root "../hive-events"}
+
+        ;; Result ADT — ok/err railway for handler returns
+        io.github.hive-agi/hive-dsl {:local/root "../hive-dsl"}}
+
+ :aliases
+ {:test {:extra-paths ["test"]
+         :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
+                      org.clojure/test.check {:mvn/version "1.1.1"}
+                      io.github.hive-agi/hive-test {:local/root "../hive-test"}}}
+
+  :dev {:extra-paths ["dev"]
+        :extra-deps {nrepl/nrepl {:mvn/version "1.3.0"}
+                     cider/cider-nrepl {:mvn/version "0.58.0"}}}}}
