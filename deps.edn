@@ -14,5 +14,5 @@
                       io.github.hive-agi/hive-test {:local/root "../hive-test"}}}
 
   :dev {:extra-paths ["dev"]
-        :extra-deps {nrepl/nrepl {:mvn/version "1.3.0"}
+        :extra-deps {nrepl/nrepl {:mvn/version "1.6.0"}
                      cider/cider-nrepl {:mvn/version "0.58.0"}}}}}
