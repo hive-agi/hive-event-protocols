@@ -355,7 +355,7 @@
    reading (status + headers + body), automatic retry with backoff for
    retryable status codes (429, 5xx), and keep-alive connection recycling."
   [_opts]
-  {:id      :http/1.1
+  {:id      :http/v1.1
    :initial ::idle
 
    :states
@@ -459,7 +459,7 @@
                    :retryable-status?  retryable-status?
                    :backoff-fn         retry/exponential-backoff-ms}]
      (reify proto/IProtocolFSM
-       (protocol-id [_] :http/1.1)
+       (protocol-id [_] :http/v1.1)
 
        (fsm-spec [_] spec)
 

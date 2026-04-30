@@ -511,7 +511,7 @@
 (deftest fsm-spec-structure-test
   (testing "spec has correct shape"
     (let [spec (http1/http1-fsm-spec {})]
-      (is (= :http/1.1 (:id spec)))
+      (is (= :http/v1.1 (:id spec)))
       (is (= ::http1/idle (:initial spec)))
       (is (= #{::http1/idle ::http1/connecting ::http1/sending-headers
                ::http1/sending-body ::http1/awaiting-response
@@ -537,7 +537,7 @@
 (deftest make-http1-fsm-test
   (testing "factory returns valid IProtocolFSM"
     (let [fsm (http1/make-http1-fsm {:max-retries 5})]
-      (is (= :http/1.1 (proto/protocol-id fsm)))
+      (is (= :http/v1.1 (proto/protocol-id fsm)))
       (is (map? (proto/fsm-spec fsm)))
       (is (= #{::http1/complete ::http1/error} (proto/terminal-states fsm)))
       (is (= {} (proto/composable-states fsm)))))

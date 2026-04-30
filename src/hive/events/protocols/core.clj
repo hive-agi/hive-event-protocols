@@ -23,7 +23,8 @@
 
 (defprotocol IProtocolFSM
   (protocol-id [this]
-    "Keyword identifying this protocol. E.g. :tcp, :http/1.1, :http/2, :tls/1.3")
+    "Keyword identifying this protocol. E.g. :tcp, :http/v1.1, :http/v2, :tls/v1.3
+     (numeric-start name segments are invalid Clojure keywords; prefix with `v`).")
 
   (fsm-spec [this]
     "Return the hive.events.fsm spec map for this protocol.
