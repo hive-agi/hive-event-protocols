@@ -79,13 +79,16 @@
                    :unknown))))
 
 (defn parse-close-payload
-  "Extract close code and reason from a close frame payload."
+  "Extract close code and reason from a close frame payload.
+   Returns {:close-code :close-reason} where :close-reason defaults to \"\"
+   when payload has only the 2-byte status code (no reason text)."
   [payload]
   (if (and payload (>= (count payload) 2))
     {:close-code   (bit-or (bit-shift-left (bit-and (nth payload 0) 0xFF) 8)
                            (bit-and (nth payload 1) 0xFF))
-     :close-reason (when (> (count payload) 2)
-                     (String. (byte-array (drop 2 payload)) "UTF-8"))}
+     :close-reason (if (> (count payload) 2)
+                     (String. (byte-array (drop 2 payload)) "UTF-8")
+                     "")}
     {:close-code close-normal :close-reason ""}))
 
 (defn make-close-payload

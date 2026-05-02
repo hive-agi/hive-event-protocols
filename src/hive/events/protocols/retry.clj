@@ -1,14 +1,18 @@
 (ns hive.events.protocols.retry
-  "Reusable retry sub-FSM — transport-agnostic retry with configurable backoff.
+  "Reusable retry sub-FSM — transport-agnostic retry with configurable backoff
+   and optional circuit-breaker.
 
    Generalizes the HTTP-specific retry loop from hive-agent into a composable
    protocol FSM that works with any request/response pattern.
 
-   States: ::attempt -> ::success | ::retryable -> ::backoff -> ::attempt | ::exhausted
+   States: ::fsm/start (gate) -> ::attempt -> ::success | ::retryable -> ::backoff -> ::attempt | ::exhausted
+                              \\-> ::circuit-open
 
    Resources (injected at run time):
-     :request-fn — (fn [data] -> response), executes the operation
-     :sleep-fn   — (fn [ms]), blocks for backoff duration
+     :request-fn       — (fn [data] -> response), executes the operation
+     :sleep-fn         — (fn [ms]), blocks for backoff duration
+     :circuit-breaker  — optional map {:state-fn (fn [] :closed|:open|:half-open)
+                                       :record!  (fn [outcome])  outcome ∈ #{:success :failure}}
 
    Configuration via opts:
      :max-retries        — max retry count (default 5)
@@ -67,6 +71,16 @@
 ;; FSM State Handlers (closed over opts)
 ;; =============================================================================
 
+(defn- make-gate-handler
+  "Read circuit-breaker state (if any). Records :circuit-state in data
+   so dispatches can route to ::attempt or ::circuit-open."
+  [_opts]
+  (fn [{:keys [circuit-breaker]} data]
+    (let [state (if-let [state-fn (:state-fn circuit-breaker)]
+                  (state-fn)
+                  :closed)]
+      (assoc data :circuit-state state))))
+
 (defn- make-attempt-handler
   "Execute request via :request-fn resource. Stores response in data."
   [_opts]
@@ -74,11 +88,26 @@
     (let [response (request-fn data)]
       (assoc data :response response))))
 
+(defn- record-circuit!
+  "Invoke circuit-breaker :record! callback with outcome (no-op if absent)."
+  [circuit-breaker outcome]
+  (when-let [record! (:record! circuit-breaker)]
+    (record! outcome)))
+
 (defn- make-success-handler
-  "Terminal success — pass through data with response."
+  "Terminal success — record success on circuit-breaker, pass through data."
+  [_opts]
+  (fn [{:keys [circuit-breaker]} data]
+    (record-circuit! circuit-breaker :success)
+    data))
+
+(defn- make-circuit-open-handler
+  "Terminal — circuit was open at gate, request never attempted."
   [_opts]
   (fn [_resources data]
-    data))
+    (assoc data :circuit-open? true
+                :error {:type          :retry/circuit-open
+                        :circuit-state (:circuit-state data)})))
 
 (defn- make-retryable-handler
   "Calculate wait duration from server hint or backoff strategy."
@@ -100,9 +129,10 @@
         (dissoc :wait-ms))))
 
 (defn- make-exhausted-handler
-  "Terminal exhaustion — all retries spent."
+  "Terminal exhaustion — record failure on circuit-breaker, mark exhausted."
   [_opts]
-  (fn [_resources data]
+  (fn [{:keys [circuit-breaker]} data]
+    (record-circuit! circuit-breaker :failure)
     (assoc data :exhausted? true
                 :error {:type    :retry/exhausted
                         :attempt (:attempt data)
@@ -136,10 +166,20 @@
 ;; FSM Spec Builder
 ;; =============================================================================
 
+(defn- circuit-open?
+  "Predicate: gate observed an open circuit."
+  [{:keys [circuit-state]}]
+  (= :open circuit-state))
+
 (defn- make-fsm-spec
   "Build FSM spec map from merged opts. Pure data + inline fns."
   [opts]
   {:fsm {::fsm/start
+         {:handler    (make-gate-handler opts)
+          :dispatches [[::circuit-open circuit-open?]
+                       [::attempt      (constantly true)]]}
+
+         ::attempt
          {:handler    (make-attempt-handler opts)
           :dispatches [[::success   (make-success-pred opts)]
                        [::retryable (make-retryable-pred opts)]
@@ -155,10 +195,14 @@
 
          ::backoff
          {:handler    (make-backoff-handler opts)
-          :dispatches [[::fsm/start (constantly true)]]}
+          :dispatches [[::attempt (constantly true)]]}
 
          ::exhausted
          {:handler    (make-exhausted-handler opts)
+          :dispatches [[::fsm/end (constantly true)]]}
+
+         ::circuit-open
+         {:handler    (make-circuit-open-handler opts)
           :dispatches [[::fsm/end (constantly true)]]}}
 
    :opts {:max-trace 20}})
@@ -207,7 +251,7 @@
                 (select-keys session-opts [:request-data])))
 
        (terminal-states [_]
-         #{::success ::exhausted})
+         #{::success ::exhausted ::circuit-open})
 
        (composable-states [_] {})))))
 
@@ -222,12 +266,15 @@
      retry-fsm  — IProtocolFSM from make-retry-fsm
      request-fn — (fn [data] -> response)
      opts       — optional map:
-       :sleep-fn     — (fn [ms]), default Thread/sleep
-       :initial-data — extra data merged into FSM initial state
+       :sleep-fn        — (fn [ms]), default Thread/sleep
+       :circuit-breaker — optional {:state-fn (fn [] :closed|:open|:half-open)
+                                    :record!  (fn [outcome])}
+       :initial-data    — extra data merged into FSM initial state
 
    Returns: final FSM data map
-     On success:    {:attempt N :response response-value}
-     On exhaustion: {:attempt N :response last-response :exhausted? true :error {...}}
+     On success:       {:attempt N :response response-value}
+     On exhaustion:    {:attempt N :response last-response :exhausted? true :error {...}}
+     On open circuit:  {:circuit-open? true :error {:type :retry/circuit-open ...}}
 
    Example:
      (run-retry (make-retry-fsm {:max-retries 3
@@ -236,9 +283,10 @@
                 {:sleep-fn (fn [ms] (Thread/sleep ms))})"
   ([retry-fsm request-fn]
    (run-retry retry-fsm request-fn {}))
-  ([retry-fsm request-fn {:keys [sleep-fn initial-data]
+  ([retry-fsm request-fn {:keys [sleep-fn circuit-breaker initial-data]
                            :or   {sleep-fn #(Thread/sleep (long %))}}]
-   (let [resources {:request-fn request-fn
-                    :sleep-fn   sleep-fn}
+   (let [resources (cond-> {:request-fn request-fn
+                            :sleep-fn   sleep-fn}
+                     circuit-breaker (assoc :circuit-breaker circuit-breaker))
          data      (merge {:attempt 0} initial-data)]
      (fsm/run (proto/compiled retry-fsm) resources {:data data}))))

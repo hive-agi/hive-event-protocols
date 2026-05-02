@@ -221,7 +221,7 @@
       (is (map? (proto/fsm-spec retry-fsm)))
       (is (some? (proto/compiled retry-fsm)))
       (is (map? (proto/initial-data retry-fsm {})))
-      (is (= #{::retry/success ::retry/exhausted}
+      (is (= #{::retry/success ::retry/exhausted ::retry/circuit-open}
              (proto/terminal-states retry-fsm)))
       (is (= {} (proto/composable-states retry-fsm))))))
 
@@ -234,3 +234,119 @@
     (let [retry-fsm (make-test-fsm)
           data      (proto/initial-data retry-fsm {:request-data {:url "http://example.com"}})]
       (is (= {:url "http://example.com"} (:request-data data))))))
+
+;; =============================================================================
+;; Tests: Circuit Breaker
+;; =============================================================================
+
+(defn- make-cb
+  "In-memory circuit-breaker: trips :open after N consecutive failures,
+   half-open after one further attempt is allowed (next request),
+   re-closes on :success."
+  [{:keys [trip-after] :or {trip-after 3}}]
+  (let [state    (atom :closed)
+        failures (atom 0)
+        record-log (atom [])]
+    {:cb {:state-fn #(deref state)
+          :record!  (fn [outcome]
+                      (swap! record-log conj outcome)
+                      (case outcome
+                        :success (do (reset! failures 0)
+                                     (reset! state :closed))
+                        :failure (let [n (swap! failures inc)]
+                                   (when (>= n trip-after)
+                                     (reset! state :open)))))}
+     :state    state
+     :failures failures
+     :log      record-log}))
+
+(deftest test-circuit-closed-allows-attempt
+  (testing "Closed circuit lets request through; success recorded"
+    (let [{:keys [cb log]} (make-cb {:trip-after 3})
+          retry-fsm (make-test-fsm)
+          result    (retry/run-retry retry-fsm
+                                    (mock-request-fn [ok-response])
+                                    {:sleep-fn        noop-sleep
+                                     :circuit-breaker cb})]
+      (is (= 200 (get-in result [:response :status])))
+      (is (nil? (:circuit-open? result)))
+      (is (= [:success] @log)))))
+
+(deftest test-circuit-open-blocks-attempt
+  (testing "Open circuit blocks request; circuit-open terminal hit"
+    (let [calls     (atom 0)
+          state     (atom :open)
+          cb        {:state-fn #(deref state)
+                     :record!  (fn [_outcome])}
+          retry-fsm (make-test-fsm)
+          result    (retry/run-retry retry-fsm
+                                    (fn [_d]
+                                      (swap! calls inc)
+                                      ok-response)
+                                    {:sleep-fn        noop-sleep
+                                     :circuit-breaker cb})]
+      (is (true? (:circuit-open? result)))
+      (is (= :retry/circuit-open (get-in result [:error :type])))
+      (is (= :open (get-in result [:error :circuit-state])))
+      (is (= 0 @calls)
+          "request-fn must NOT be called when circuit is open"))))
+
+(deftest test-circuit-trips-on-exhaustion
+  (testing "Repeated failures trip the circuit; subsequent run is blocked"
+    (let [{:keys [cb state log]} (make-cb {:trip-after 1})
+          retry-fsm (make-test-fsm {:max-retries 2})
+          ;; First run: exhausts retries, records :failure, trips circuit open.
+          first-result (retry/run-retry retry-fsm
+                                       (mock-request-fn (repeat 10 rate-limited))
+                                       {:sleep-fn        noop-sleep
+                                        :circuit-breaker cb})]
+      (is (true? (:exhausted? first-result)))
+      (is (= [:failure] @log))
+      (is (= :open @state)
+          "Circuit should be open after trip-after=1 failure")
+
+      ;; Second run: gate sees :open, never calls request-fn.
+      (let [calls (atom 0)
+            second-result (retry/run-retry retry-fsm
+                                          (fn [_d]
+                                            (swap! calls inc)
+                                            ok-response)
+                                          {:sleep-fn        noop-sleep
+                                           :circuit-breaker cb})]
+        (is (true? (:circuit-open? second-result)))
+        (is (= 0 @calls)
+            "Open circuit must short-circuit before request-fn is called")))))
+
+(deftest test-circuit-half-open-permits-probe
+  (testing "Half-open state is treated as closed at gate (probe allowed)"
+    (let [state (atom :half-open)
+          log   (atom [])
+          cb    {:state-fn #(deref state)
+                 :record!  (fn [outcome]
+                             (swap! log conj outcome)
+                             (when (= :success outcome)
+                               (reset! state :closed)))}
+          retry-fsm (make-test-fsm)
+          result    (retry/run-retry retry-fsm
+                                    (mock-request-fn [ok-response])
+                                    {:sleep-fn        noop-sleep
+                                     :circuit-breaker cb})]
+      (is (= 200 (get-in result [:response :status])))
+      (is (= [:success] @log))
+      (is (= :closed @state)
+          "Successful probe should re-close the circuit"))))
+
+(deftest test-no-circuit-breaker-is-noop
+  (testing "Absence of :circuit-breaker resource leaves behavior unchanged"
+    (let [retry-fsm (make-test-fsm)
+          result    (retry/run-retry retry-fsm
+                                    (mock-request-fn [ok-response])
+                                    {:sleep-fn noop-sleep})]
+      (is (= 200 (get-in result [:response :status])))
+      (is (nil? (:circuit-open? result))))))
+
+(deftest test-circuit-open-terminal-state
+  (testing "::circuit-open is a declared terminal state"
+    (let [retry-fsm (make-test-fsm)]
+      (is (contains? (proto/terminal-states retry-fsm)
+                     ::retry/circuit-open)))))
