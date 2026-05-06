@@ -5,7 +5,7 @@
         io.github.hive-agi/hive-events {:git/tag "v0.5.2" :git/sha "24a58a1"}
 
         ;; Result ADT — ok/err railway for handler returns
-        io.github.hive-agi/hive-dsl {:git/tag "v0.4.1" :git/sha "07ab02a"}}
+        io.github.hive-agi/hive-dsl {:git/tag "v0.5.1" :git/sha "335869e"}}
 
  :aliases
  {:test {:extra-paths ["test"]
