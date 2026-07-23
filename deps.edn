@@ -5,7 +5,7 @@
         io.github.hive-agi/hive-events {:mvn/version "0.5.6"}
 
         ;; Result ADT — ok/err railway for handler returns
-        io.github.hive-agi/hive-dsl {:mvn/version "0.5.7"}}
+        io.github.hive-agi/hive-dsl {:mvn/version "0.5.8"}}
 
  :aliases
  {
