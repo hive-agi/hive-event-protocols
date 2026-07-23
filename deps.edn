@@ -2,10 +2,10 @@
  :deps {org.clojure/clojure {:mvn/version "1.12.1"}
 
         ;; FSM engine — compile, run, sub-FSM composition, FX
-        io.github.hive-agi/hive-events {:mvn/version "0.5.4"}
+        io.github.hive-agi/hive-events {:mvn/version "0.5.5"}
 
         ;; Result ADT — ok/err railway for handler returns
-        io.github.hive-agi/hive-dsl {:mvn/version "0.5.5"}}
+        io.github.hive-agi/hive-dsl {:mvn/version "0.5.6"}}
 
  :aliases
  {
@@ -17,7 +17,7 @@
 :test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                       org.clojure/test.check {:mvn/version "1.1.1"}
-                      io.github.hive-agi/hive-test {:mvn/version "0.3.8"}}}
+                      io.github.hive-agi/hive-test {:mvn/version "0.3.9"}}}
 
   :dev {:extra-paths ["dev"]
         :extra-deps {nrepl/nrepl {:mvn/version "1.7.0"}
