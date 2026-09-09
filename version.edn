@@ -1,6 +1,6 @@
 {:lib      io.github.hive-agi/hive-event-protocols
  :minor    1
- :license  {:name "UNDECLARED" :url ""}
+ :license  {:name "MIT" :url "https://opensource.org/licenses/MIT"}
  :scm-url  "https://github.com/hive-agi/hive-event-protocols"
  :src-dirs ["src"]
  :publish  :none}
