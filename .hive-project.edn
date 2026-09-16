@@ -1,0 +1,6 @@
+{:project-id "hive-event-protocols"
+ :parent "hive"
+ :description "Wire-protocol adapters for hive-events — tcp, tls, http1/http2/http3, websocket and retry, behind one core protocol seam."
+ :language :clojure
+ :tags ["events" "protocols" "transport" "http" "websocket"]
+ :carto {:source-roots ["src" "test"]}}
