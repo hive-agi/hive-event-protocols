@@ -2,22 +2,22 @@
  :deps {org.clojure/clojure {:mvn/version "1.12.6"}
 
         ;; FSM engine — compile, run, sub-FSM composition, FX
-        io.github.hive-agi/hive-events {:mvn/version "0.5.18"}
+        io.github.hive-agi/hive-events {:mvn/version "0.5.19"}
 
         ;; Result ADT — ok/err railway for handler returns
-        io.github.hive-agi/hive-dsl {:mvn/version "0.5.33"}}
+        io.github.hive-agi/hive-dsl {:mvn/version "0.5.36"}}
 
  :aliases
  {
   ;; :build — tools.build entrypoint (clojure -T:build <task>). Canonical hive
   ;; build: jar / jar-aot / install / bump / verify-license / deploy.
-  :build {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.24"}}
+  :build {:deps {io.github.hive-agi/hive-build {:mvn/version "0.1.28"}}
           :ns-default hive-build.api}
 :test {:extra-paths ["test"]
          :extra-deps {lambdaisland/kaocha {:mvn/version "1.91.1392"}
                       org.clojure/test.check {:mvn/version "1.1.3"}
-                      io.github.hive-agi/hive-test {:mvn/version "0.4.10"}}}
+                      io.github.hive-agi/hive-test {:mvn/version "0.4.11"}}}
 
   :dev {:extra-paths ["dev"]
-        :extra-deps {nrepl/nrepl {:mvn/version "1.7.0"}
+        :extra-deps {nrepl/nrepl {:mvn/version "1.8.0"}
                      cider/cider-nrepl {:mvn/version "0.62.2"}}}}}
