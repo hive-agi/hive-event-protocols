@@ -23,7 +23,8 @@
 
    Implements IProtocolFSM from hive.events.protocols.core for registry integration."
   (:require [hive.events.fsm :as fsm]
-            [hive.events.protocols.core :as proto]))
+            [hive.events.protocols.core :as proto]
+            [malli.core :as m]))
 
 ;; =============================================================================
 ;; Pure Backoff Helpers
@@ -290,3 +291,24 @@
                      circuit-breaker (assoc :circuit-breaker circuit-breaker))
          data      (merge {:attempt 0} initial-data)]
      (fsm/run (proto/compiled retry-fsm) resources {:data data}))))
+
+;; =============================================================================
+;; Contracts
+;; =============================================================================
+
+(def BackoffFn
+  "A backoff strategy: [attempt initial-backoff-ms] -> wait ms.
+
+   Generation stays where base * 2^attempt / 4 fits an int:
+   exponential-backoff-ms casts its jitter bound with `int` and throws past
+   2^31 (e.g. attempt 17, base 65536)."
+  [:=> [:cat [:int {:min 0 :gen/max 10}] [:int {:min 0 :gen/max 100000}]] [:int {:min 0}]])
+
+(m/=> exponential-backoff-ms BackoffFn)
+(m/=> linear-backoff-ms BackoffFn)
+(m/=> constant-backoff-ms BackoffFn)
+(m/=> make-retry-fsm proto/FsmFactory)
+(m/=> run-retry
+      [:function
+       [:=> [:cat proto/ProtocolFSM ifn?] proto/FsmData]
+       [:=> [:cat proto/ProtocolFSM ifn? [:maybe :map]] proto/FsmData]])

@@ -1,0 +1,6 @@
+{:bad-gw true,
+ :ise true,
+ :not-found false,
+ :ok false,
+ :too-many true,
+ :unavail true}

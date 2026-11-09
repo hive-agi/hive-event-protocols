@@ -23,7 +23,8 @@
                :keep-alive?         true}   ;; Connection: keep-alive default"
   (:require [clojure.string :as str]
             [hive.events.protocols.core :as proto]
-            [hive.events.protocols.retry :as retry]))
+            [hive.events.protocols.retry :as retry]
+            [malli.core :as m]))
 
 ;; =============================================================================
 ;; Constants
@@ -477,3 +478,42 @@
        (composable-states [_]
          ;; HTTP/1.1 doesn't host sub-FSMs
          {})))))
+
+;; =============================================================================
+;; Contracts
+;; =============================================================================
+
+(def Headers
+  "HTTP header map, string names."
+  [:maybe [:map-of :string :any]])
+
+(m/=> retryable-status? [:=> [:cat :any] :boolean])
+(m/=> parse-content-length [:=> [:cat Headers] [:maybe :int]])
+(m/=> chunked-transfer? [:=> [:cat Headers] :boolean])
+(m/=> response-keep-alive? [:=> [:cat Headers [:maybe :string]] :boolean])
+(m/=> parse-retry-after-header [:=> [:cat Headers] [:maybe :int]])
+(m/=> no-body-status? [:=> [:cat :int] :boolean])
+(m/=> http1-fsm-spec proto/SpecBuilder)
+(m/=> make-http1-fsm proto/FsmFactory)
+
+;; FSM handlers and dispatch predicates share one shape: [resources data].
+(m/=> on-idle-enter proto/Handler)
+(m/=> on-connect proto/Handler)
+(m/=> on-send-headers proto/Handler)
+(m/=> on-send-body proto/Handler)
+(m/=> on-recv-status proto/Handler)
+(m/=> on-recv-headers proto/Handler)
+(m/=> on-recv-body proto/Handler)
+(m/=> on-complete proto/Handler)
+(m/=> on-retry proto/Handler)
+(m/=> on-error proto/Handler)
+(m/=> has-request? proto/DispatchPred)
+(m/=> connected? proto/DispatchPred)
+(m/=> has-body? proto/DispatchPred)
+(m/=> status-received? proto/DispatchPred)
+(m/=> headers-complete? proto/DispatchPred)
+(m/=> body-complete? proto/DispatchPred)
+(m/=> retryable? proto/DispatchPred)
+(m/=> keep-alive-next? proto/DispatchPred)
+(m/=> has-error? proto/DispatchPred)
+(m/=> always proto/DispatchPred)
