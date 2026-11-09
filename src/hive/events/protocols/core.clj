@@ -15,7 +15,8 @@
      IProtocolFSM (this ns)     — what the protocol state machine looks like
      ITransport (this ns)       — what I/O capabilities it needs
      concrete protocols          — tcp.clj, http1.clj, etc.
-     transport adapters          — aleph.clj, netty.clj, etc. (separate lib or consumer)")
+     transport adapters          — aleph.clj, netty.clj, etc. (separate lib or consumer)"
+  (:require [malli.core :as m]))
 
 ;; =============================================================================
 ;; Protocol FSM — what a protocol state machine provides
@@ -143,3 +144,66 @@
         data  (initial-data protocol opts)]
     ((requiring-resolve 'hive.events.fsm/run)
      fsm resources {:data data})))
+
+;; =============================================================================
+;; Schemas — shared by every protocol namespace's m/=> contracts
+;; =============================================================================
+
+(def ProtocolFSM
+  "A value implementing IProtocolFSM."
+  [:fn {:error/message "should implement IProtocolFSM"}
+   #(satisfies? IProtocolFSM %)])
+
+(def Transport
+  "A value implementing ITransport."
+  [:fn {:error/message "should implement ITransport"}
+   #(satisfies? ITransport %)])
+
+(def Timer
+  "A value implementing ITimer."
+  [:fn {:error/message "should implement ITimer"}
+   #(satisfies? ITimer %)])
+
+(def Resources
+  "The resources map FSM handlers receive (transport, timer, crypto, ...)."
+  [:maybe :map])
+
+(def FsmData
+  "The FSM data map threaded through every handler."
+  :map)
+
+(def Handler
+  "An FSM :enter / :handle fn: [resources data] -> data."
+  [:=> [:cat Resources FsmData] FsmData])
+
+(def DispatchPred
+  "An FSM :dispatch predicate: [resources data] -> truthy. Total over nil data."
+  [:=> [:cat Resources [:maybe FsmData]] :any])
+
+(def FsmSpec
+  "A pure-data hive.events.fsm spec."
+  [:map [:id :keyword] [:initial :keyword] [:states [:map-of :keyword :map]]])
+
+(def SpecBuilder
+  "A protocol's spec builder: [opts] -> FsmSpec."
+  [:=> [:cat :any] FsmSpec])
+
+(def FsmFactory
+  "A protocol FSM factory: [] or [opts] -> IProtocolFSM."
+  [:function
+   [:=> [:cat] ProtocolFSM]
+   [:=> [:cat [:maybe :map]] ProtocolFSM]])
+
+;; =============================================================================
+;; Contracts
+;; =============================================================================
+
+(m/=> register! [:=> [:cat ProtocolFSM] [:map-of :keyword ProtocolFSM]])
+(m/=> lookup [:=> [:cat :any] [:maybe ProtocolFSM]])
+(m/=> registered-protocols [:=> [:cat] [:maybe [:sequential :keyword]]])
+(m/=> make-resources
+      [:function
+       [:=> [:cat Transport] Resources]
+       [:=> [:cat Transport [:maybe Timer]] Resources]
+       [:=> [:cat Transport [:maybe Timer] [:maybe :map]] Resources]])
+(m/=> run-session [:=> [:cat ProtocolFSM Resources [:maybe :map]] FsmData])
