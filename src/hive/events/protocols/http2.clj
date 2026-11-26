@@ -31,7 +31,8 @@
      RFC 7540 §5 (Streams and Multiplexing)
      RFC 7540 §6 (Frame Definitions)
      RFC 7540 §7 (Error Codes)"
-  (:require [hive.events.protocols.core :as proto]))
+  (:require [hive.events.protocols.core :as proto]
+            [malli.core :as m]))
 
 ;; =============================================================================
 ;; Constants — RFC 7540
@@ -688,3 +689,73 @@
        (composable-states [_]
          ;; ::connected hosts one or more stream sub-FSMs
          {::connected (make-http2-stream-fsm opts)})))))
+
+;; =============================================================================
+;; Contracts
+;; =============================================================================
+
+(def Frame
+  "An HTTP/2 frame map."
+  [:map [:frame-type :int] [:flags :any] [:stream-id [:maybe :int]] [:payload :any]])
+
+(def FramePred
+  "A frame classifier: [frame] -> boolean."
+  [:=> [:cat [:maybe :map]] :boolean])
+
+(def StreamId
+  "A stream id seed: nil or a non-negative stream id."
+  [:maybe [:int {:min 0 :max 1000000}]])
+
+(m/=> make-frame [:=> [:cat :int :any [:maybe :int] :any] Frame])
+(m/=> flag-set? [:=> [:cat [:maybe :map] :keyword] :boolean])
+(m/=> settings-frame? FramePred)
+(m/=> settings-ack? FramePred)
+(m/=> headers-frame? FramePred)
+(m/=> data-frame? FramePred)
+(m/=> rst-stream-frame? FramePred)
+(m/=> goaway-frame? FramePred)
+(m/=> ping-frame? FramePred)
+(m/=> window-update-frame? FramePred)
+(m/=> push-promise-frame? FramePred)
+(m/=> continuation-frame? FramePred)
+(m/=> end-stream? FramePred)
+(m/=> end-headers? FramePred)
+(m/=> next-client-stream-id [:=> [:cat StreamId] pos-int?])
+(m/=> next-server-stream-id [:=> [:cat StreamId] pos-int?])
+(m/=> http2-connection-fsm-spec proto/SpecBuilder)
+(m/=> http2-stream-fsm-spec proto/SpecBuilder)
+(m/=> make-http2-stream-fsm proto/FsmFactory)
+(m/=> make-http2-fsm proto/FsmFactory)
+
+;; FSM handlers and dispatch predicates share one shape: [resources data].
+(m/=> on-send-preface proto/Handler)
+(m/=> on-recv-server-settings proto/Handler)
+(m/=> on-recv-settings-ack proto/Handler)
+(m/=> on-enter-connected proto/Handler)
+(m/=> on-recv-connection-frame proto/Handler)
+(m/=> on-send-goaway proto/Handler)
+(m/=> on-close-connection proto/Handler)
+(m/=> local-settings-sent? proto/DispatchPred)
+(m/=> server-settings-received? proto/DispatchPred)
+(m/=> settings-ack-received? proto/DispatchPred)
+(m/=> goaway-received? proto/DispatchPred)
+(m/=> goaway-sent? proto/DispatchPred)
+(m/=> close-requested? proto/DispatchPred)
+(m/=> has-error? proto/DispatchPred)
+(m/=> always proto/DispatchPred)
+(m/=> on-stream-idle-handle proto/Handler)
+(m/=> on-stream-send-headers proto/Handler)
+(m/=> on-stream-send-data proto/Handler)
+(m/=> on-stream-recv-frame proto/Handler)
+(m/=> on-stream-rst proto/Handler)
+(m/=> on-stream-closed proto/Handler)
+(m/=> has-request? proto/DispatchPred)
+(m/=> pushed? proto/DispatchPred)
+(m/=> headers-sent? proto/DispatchPred)
+(m/=> end-stream-sent? proto/DispatchPred)
+(m/=> end-stream-received? proto/DispatchPred)
+(m/=> rst-received? proto/DispatchPred)
+(m/=> rst-sent? proto/DispatchPred)
+(m/=> abort-requested? proto/DispatchPred)
+(m/=> has-pending-data? proto/DispatchPred)
+(m/=> fully-closed? proto/DispatchPred)

@@ -1,0 +1,9 @@
+{:payload
+ {:flags #{:ack :psh},
+  :seq-num 5000,
+  :ack-num 3000,
+  :window 32768,
+  :payload [1 2 3]},
+ :syn {:flags #{:syn}, :seq-num 1000, :ack-num 0, :window 65535},
+ :syn-ack
+ {:flags #{:ack :syn}, :seq-num 1, :ack-num 1001, :window 65535}}

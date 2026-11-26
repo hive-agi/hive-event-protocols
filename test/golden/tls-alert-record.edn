@@ -1,0 +1,4 @@
+{:fatal
+ {:record-type :alert, :level :fatal, :description :handshake-failure},
+ :warning
+ {:record-type :alert, :level :warning, :description :close-notify}}

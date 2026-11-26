@@ -1,0 +1,4 @@
+{:code {:close-code 1000, :close-reason ""},
+ :nil {:close-code 1000, :close-reason ""},
+ :reason {:close-code 1000, :close-reason "hi"},
+ :short {:close-code 1000, :close-reason ""}}

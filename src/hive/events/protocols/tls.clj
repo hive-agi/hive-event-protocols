@@ -30,7 +30,8 @@
        :verify-finished       (fn [finished-key transcript-hash verify-data] -> bool)
        :compute-finished      (fn [finished-key transcript-hash] -> verify-data)
        :hash-transcript       (fn [messages] -> hash-bytes)"
-  (:require [hive.events.protocols.core :as proto]))
+  (:require [hive.events.protocols.core :as proto]
+            [malli.core :as m]))
 
 ;; =============================================================================
 ;; Constants — RFC 8446
@@ -644,3 +645,41 @@
          ;; TLS connected state can host application-level sub-FSMs
          ;; (HTTP/1.1, HTTP/2, etc.)
          {::connected :application})))))
+
+;; =============================================================================
+;; Contracts
+;; =============================================================================
+
+(def Record
+  "A TLS record map."
+  [:map [:record-type :keyword]])
+
+(m/=> make-handshake-record [:=> [:cat :any :any] Record])
+(m/=> make-alert-record [:=> [:cat :any :any] Record])
+(m/=> handshake-msg? [:=> [:cat [:maybe :map] :any] :boolean])
+(m/=> alert-record? [:=> [:cat [:maybe :map]] :boolean])
+(m/=> build-client-hello
+      [:=> [:cat [:maybe :map] :map]
+       [:map [:msg-type :any] [:version :any] [:client-random vector?] [:cipher-suites :any] [:extensions :map]]])
+(m/=> tls-fsm-spec proto/SpecBuilder)
+(m/=> make-tls-fsm proto/FsmFactory)
+
+;; FSM handlers and dispatch predicates share one shape: [resources data].
+(m/=> on-send-client-hello proto/Handler)
+(m/=> on-start-handle proto/Handler)
+(m/=> on-recv-server-hello proto/Handler)
+(m/=> on-recv-encrypted-extensions proto/Handler)
+(m/=> on-recv-certificate proto/Handler)
+(m/=> on-recv-cert-verify proto/Handler)
+(m/=> on-recv-finished proto/Handler)
+(m/=> on-handshake-complete proto/Handler)
+(m/=> on-tls-error proto/Handler)
+(m/=> server-hello-received? proto/DispatchPred)
+(m/=> encrypted-extensions-received? proto/DispatchPred)
+(m/=> cert-expected? proto/DispatchPred)
+(m/=> psk-mode? proto/DispatchPred)
+(m/=> certificate-received? proto/DispatchPred)
+(m/=> cert-verified? proto/DispatchPred)
+(m/=> handshake-complete? proto/DispatchPred)
+(m/=> has-error? proto/DispatchPred)
+(m/=> always proto/DispatchPred)

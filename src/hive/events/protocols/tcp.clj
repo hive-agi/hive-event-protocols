@@ -16,7 +16,8 @@
                :connect-timeout-ms  30000   ;; SYN timeout
                :recv-timeout-ms     30000   ;; general receive timeout
                :initial-window      65535}  ;; advertised window size"
-  (:require [hive.events.protocols.core :as proto]))
+  (:require [hive.events.protocols.core :as proto]
+            [malli.core :as m]))
 
 ;; =============================================================================
 ;; Constants — RFC 793 §3.1
@@ -611,3 +612,57 @@
          ;; TCP established state hosts application-level sub-FSMs
          ;; (TLS, HTTP/1.1, HTTP/2, etc.)
          {::established :application})))))
+
+;; =============================================================================
+;; Contracts
+;; =============================================================================
+
+(def Segment
+  "A TCP segment map."
+  [:map [:flags [:set :keyword]] [:seq-num [:maybe :int]] [:ack-num [:maybe :int]] [:window :int]])
+
+(m/=> make-segment
+      [:=> [:cat [:or [:set :keyword] [:sequential :keyword]] [:maybe :int] [:maybe :int] [:* :any]] Segment])
+(m/=> has-flag? [:=> [:cat [:maybe :map] :keyword] :boolean])
+(m/=> syn? [:=> [:cat [:maybe :map]] :boolean])
+(m/=> ack? [:=> [:cat [:maybe :map]] :boolean])
+(m/=> fin? [:=> [:cat [:maybe :map]] :boolean])
+(m/=> rst? [:=> [:cat [:maybe :map]] :boolean])
+(m/=> syn-ack? [:=> [:cat [:maybe :map]] :boolean])
+(m/=> fin-ack? [:=> [:cat [:maybe :map]] :boolean])
+(m/=> tcp-fsm-spec proto/SpecBuilder)
+(m/=> make-tcp-fsm proto/FsmFactory)
+
+;; FSM handlers and dispatch predicates share one shape: [resources data].
+(m/=> on-close-cleanup proto/Handler)
+(m/=> on-open-connection proto/Handler)
+(m/=> on-enter-listen proto/Handler)
+(m/=> on-listen-recv proto/Handler)
+(m/=> on-send-syn proto/Handler)
+(m/=> on-syn-sent-recv proto/Handler)
+(m/=> on-send-syn-ack proto/Handler)
+(m/=> on-syn-received-recv proto/Handler)
+(m/=> on-enter-established proto/Handler)
+(m/=> on-established-recv proto/Handler)
+(m/=> on-send-fin proto/Handler)
+(m/=> on-fin-wait-1-recv proto/Handler)
+(m/=> on-fin-wait-2-recv proto/Handler)
+(m/=> on-enter-close-wait proto/Handler)
+(m/=> on-close-wait-handle proto/Handler)
+(m/=> on-closing-recv proto/Handler)
+(m/=> on-send-fin-last-ack proto/Handler)
+(m/=> on-last-ack-recv proto/Handler)
+(m/=> on-enter-time-wait proto/Handler)
+(m/=> on-time-wait-handle proto/Handler)
+(m/=> passive-open? proto/DispatchPred)
+(m/=> active-open? proto/DispatchPred)
+(m/=> syn-received? proto/DispatchPred)
+(m/=> syn-ack-received? proto/DispatchPred)
+(m/=> ack-received? proto/DispatchPred)
+(m/=> ack-of-fin? proto/DispatchPred)
+(m/=> fin-received? proto/DispatchPred)
+(m/=> fin-ack-received? proto/DispatchPred)
+(m/=> close-requested? proto/DispatchPred)
+(m/=> time-wait-expired? proto/DispatchPred)
+(m/=> has-error? proto/DispatchPred)
+(m/=> always proto/DispatchPred)

@@ -47,7 +47,8 @@
      RFC 9001 — Using TLS to Secure QUIC
      RFC 9114 — HTTP/3
      RFC 9204 — QPACK (Header Compression for HTTP/3)"
-  (:require [hive.events.protocols.core :as proto]))
+  (:require [hive.events.protocols.core :as proto]
+            [malli.core :as m]))
 
 ;; =============================================================================
 ;; Constants — RFC 9000 (QUIC) and RFC 9114 (HTTP/3)
@@ -657,3 +658,55 @@
          ;; ::quic-established hosts one or more HTTP/3 stream sub-FSMs.
          {::quic-handshake   :tls-1.3
           ::quic-established (make-http3-stream-fsm opts)})))))
+
+;; =============================================================================
+;; Contracts
+;; =============================================================================
+
+(def StreamId
+  "A QUIC stream id (62-bit non-negative)."
+  [:int {:min 0}])
+
+(m/=> make-quic-packet
+      [:=> [:cat :any :any :any [:maybe [:sequential :any]]]
+       [:map [:packet-type :any] [:connection-id :any] [:packet-number :any] [:frames vector?]]])
+(m/=> make-quic-frame [:=> [:cat :any :any] [:map [:frame-type :any] [:payload :any]]])
+(m/=> make-h3-frame [:=> [:cat :any :any] [:map [:h3-frame-type :any] [:payload :any]]])
+(m/=> quic-frame-of-type? [:=> [:cat [:maybe :map] :any] :boolean])
+(m/=> h3-frame-of-type? [:=> [:cat [:maybe :map] :any] :boolean])
+(m/=> h3-stream-id-bidi? [:=> [:cat StreamId] :boolean])
+(m/=> h3-stream-id-server-bidi? [:=> [:cat StreamId] :boolean])
+(m/=> h3-stream-id-client-uni? [:=> [:cat StreamId] :boolean])
+(m/=> h3-stream-id-server-uni? [:=> [:cat StreamId] :boolean])
+(m/=> quic-connection-fsm-spec proto/SpecBuilder)
+(m/=> http3-stream-fsm-spec proto/SpecBuilder)
+(m/=> make-http3-stream-fsm proto/FsmFactory)
+(m/=> make-http3-fsm proto/FsmFactory)
+
+;; FSM handlers and dispatch predicates share one shape: [resources data].
+(m/=> on-quic-send-initial proto/Handler)
+(m/=> on-quic-handshake-recv proto/Handler)
+(m/=> on-quic-established-enter proto/Handler)
+(m/=> on-quic-established-recv proto/Handler)
+(m/=> on-quic-send-close proto/Handler)
+(m/=> on-quic-closed-enter proto/Handler)
+(m/=> initial-sent? proto/DispatchPred)
+(m/=> handshake-complete? proto/DispatchPred)
+(m/=> close-received? proto/DispatchPred)
+(m/=> close-sent? proto/DispatchPred)
+(m/=> close-requested? proto/DispatchPred)
+(m/=> handshake-timeout? proto/DispatchPred)
+(m/=> has-error? proto/DispatchPred)
+(m/=> always proto/DispatchPred)
+(m/=> on-h3-send-headers proto/Handler)
+(m/=> on-h3-send-data proto/Handler)
+(m/=> on-h3-recv-frame proto/Handler)
+(m/=> on-h3-cancel proto/Handler)
+(m/=> on-h3-stream-closed proto/Handler)
+(m/=> h3-has-request? proto/DispatchPred)
+(m/=> h3-headers-sent? proto/DispatchPred)
+(m/=> h3-end-stream-sent? proto/DispatchPred)
+(m/=> h3-end-stream-received? proto/DispatchPred)
+(m/=> h3-cancel-sent? proto/DispatchPred)
+(m/=> h3-cancel-received? proto/DispatchPred)
+(m/=> h3-fully-closed? proto/DispatchPred)

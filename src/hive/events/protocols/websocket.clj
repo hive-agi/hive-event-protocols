@@ -14,7 +14,8 @@
                :max-frame-size    65536   ;; bytes
                :extensions        []      ;; reserved
                :subprotocols      []}     ;; Sec-WebSocket-Protocol"
-  (:require [hive.events.protocols.core :as proto])
+  (:require [hive.events.protocols.core :as proto]
+            [malli.core :as m])
   (:import  [java.security MessageDigest]
             [java.util Base64]))
 
@@ -348,3 +349,38 @@
        (composable-states [_]
          ;; WebSocket open state can host application-level sub-FSMs
          {::open :application})))))
+
+;; =============================================================================
+;; Contracts
+;; =============================================================================
+
+(def Opcode
+  "A WebSocket frame opcode (4 bits)."
+  [:int {:min 0 :max 15}])
+
+(m/=> sec-websocket-accept [:=> [:cat :any] :string])
+(m/=> valid-accept? [:=> [:cat :any :any] :boolean])
+(m/=> control-opcode? [:=> [:cat Opcode] :boolean])
+(m/=> parse-frame [:=> [:cat :map] [:map [:type :keyword]]])
+(m/=> parse-close-payload
+      [:=> [:cat [:maybe [:sequential :int]]] [:map [:close-code :int] [:close-reason :string]]])
+(m/=> make-close-payload [:=> [:cat [:int {:min 0 :max 65535}] [:maybe :string]] [:vector :int]])
+(m/=> websocket-fsm-spec proto/SpecBuilder)
+(m/=> make-websocket-fsm proto/FsmFactory)
+
+;; FSM handlers and dispatch predicates share one shape: [resources data].
+(m/=> on-initiate-handshake proto/Handler)
+(m/=> on-handshake-response proto/Handler)
+(m/=> on-open proto/Handler)
+(m/=> on-receive-frame proto/Handler)
+(m/=> on-send-ping proto/Handler)
+(m/=> on-initiate-close proto/Handler)
+(m/=> on-await-peer-close proto/Handler)
+(m/=> on-close-transport proto/Handler)
+(m/=> handshake-ok? proto/DispatchPred)
+(m/=> handshake-err? proto/DispatchPred)
+(m/=> peer-close? proto/DispatchPred)
+(m/=> close-sent? proto/DispatchPred)
+(m/=> close-done? proto/DispatchPred)
+(m/=> has-error? proto/DispatchPred)
+(m/=> always proto/DispatchPred)
